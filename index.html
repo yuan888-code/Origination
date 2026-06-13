@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>线粒体迷踪｜给小雅家的答案（大赛优化版）</title>
+<!-- Font Awesome 6 (免费图标库) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Inter', system-ui, 'Segoe UI', 'PingFang SC', Roboto, sans-serif;
+  background: radial-gradient(circle at 10% 20%, #0a1220, #03060c);
+  color: #EAF0FF;
+  min-height: 100vh;
+  padding-bottom: 80px;
+  overflow-x: hidden;
+}
+
+/* 平滑滚动 */
+html {
+  scroll-behavior: smooth;
+}
+
+/* 页面容器 */
+.page {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: calc(100vh - 80px);
+  padding: 24px 20px 40px;
+  animation: fadeIn 0.3s ease;
+}
+
+.page.active {
+  display: flex;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px);}
+  to { opacity: 1; transform: translateY(0);}
+}
+
+/* 卡片通用样式 */
+.card, .stats-panel, .fusion-lab, .predict-panel, .conclusion {
+  background: rgba(18, 28, 45, 0.75);
+  backdrop-filter: blur(8px);
+  border-radius: 32px;
+  padding: 20px 24px;
+  margin: 16px 0;
+  border: 1px solid rgba(77, 163, 255, 0.35);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  width: 100%;
+  max-width: 700px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover, .stats-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.3);
+}
+
+h1 {
+  font-size: 1.9rem;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #7bc3ff, #2d7fff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  display: inline-block;
+}
+
+h2 {
+  font-size: 1.3rem;
+  margin: 12px 0 8px;
+  color: #bbd4ff;
+}
+
+button, .group-badge, .nav-btn {
+  background: #2d7fff;
+  border: none;
+  border-radius: 60px;
+  padding: 10px 24px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+button:active { transform: scale(0.96); background: #1b5fcf; }
+button:hover { background: #4791ff; transform: translateY(-1px); }
+
+.flex-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #0a1022dd;
+  backdrop-filter: blur(16px);
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 12px;
+  border-top: 1px solid #2d7fff66;
+  z-index: 200;
+  gap: 6px;
+}
+
+.nav-btn {
+  background: #1e2a47;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* 家族树 */
+.family-tree {
+  background: #0f172a;
+  border-radius: 48px;
+  padding: 20px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  max-width: 550px;
+  margin: 20px auto;
+}
+
+.member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 70px;
+}
+
+.avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #2d3a60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  margin-bottom: 6px;
+  border: 2px solid #5f8ac0;
+  transition: 0.1s;
+}
+
+.avatar.affected { background: #b91c1c; border-color: #ff8a8a; }
+.avatar.carrier { background: #b85c1c; border-color: #ffb347; }
+
+/* 线粒体网格 */
+.cell-grid {
+  width: 280px;
+  height: 280px;
+  margin: 20px auto;
+  background: #071126;
+  border-radius: 50%;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+  padding: 12px;
+  box-shadow: 0 0 0 3px #2d7fff66;
+}
+
+.mito-dot {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transition: background 0.05s linear;
+}
+
+/* 器官指示器 */
+.organs {
+  display: flex;
+  justify-content: space-around;
+  background: #03081280;
+  padding: 12px;
+  border-radius: 60px;
+  margin: 16px auto;
+  max-width: 400px;
+}
+
+.organs span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.8rem;
+  gap: 4px;
+}
+
+/* 直方图 canvas 响应式 */
+canvas {
+  display: block;
+  margin: 0 auto;
+  background: #0a1220;
+  border-radius: 24px;
+  width: 100%;
+  height: auto;
+  max-width: 500px;
+  border: 1px solid #2d7fff55;
+}
+
+/* 历史记录 */
+.history-list {
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+  background: #071126;
+  border-radius: 24px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.history-item {
+  background: #0f1a2c;
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 20px;
+  border-left: 4px solid #2d7fff;
+}
+
+/* 滑块美化 */
+input[type="range"] {
+  width: 80%;
+  margin: 16px auto;
+  -webkit-appearance: none;
+  background: #1e2a47;
+  border-radius: 10px;
+  height: 6px;
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2d7fff;
+  cursor: pointer;
+  box-shadow: 0 0 6px #7bc3ff;
+}
+
+/* 对比组选择器 */
+.group-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+.group-badge {
+  background: #1e2a47;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.group-badge.active {
+  background: #2d7fff;
+  box-shadow: 0 0 8px #2d7fff;
+}
+
+/* 提示浮层 */
+.toast-msg {
+  position: fixed;
+  bottom: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000000cc;
+  backdrop-filter: blur(20px);
+  color: #e0ffb0;
+  padding: 10px 24px;
+  border-radius: 60px;
+  font-size: 0.85rem;
+  z-index: 300;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 学习目标卡片 */
+.learning-goal {
+  background: linear-gradient(135deg, #1a2a4a, #0f1a2e);
+  border-left: 6px solid #ffb347;
+  border-radius: 24px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+/* 移动端适配 */
+@media (max-width: 550px) {
+  .cell-grid { width: 220px; height: 220px; gap: 2px; }
+  .nav-btn { padding: 6px 12px; font-size: 0.7rem; }
+  button { padding: 8px 16px; font-size: 0.8rem; }
+  .card { padding: 16px 18px; }
+  h1 { font-size: 1.6rem; }
+  .bottom-nav { gap: 4px; }
+  .toast-msg { white-space: normal; text-align: center; width: 80%; font-size: 0.75rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ========================= 页面 1 ========================= -->
+<section class="page active" id="page1">
+  <div class="card">
+    <div class="learning-goal">
+      <i class="fas fa-bullseye" style="color:#ffb347; margin-right: 8px;"></i>
+      <strong>🎯 本节课你将学会：</strong><br>
+      1️⃣ 为什么线粒体疾病只从母亲遗传？<br>
+      2️⃣ 突变比例不同，症状为何轻重不一？（阈值效应）<br>
+      3️⃣ 同样母亲，为什么孩子患病风险差异很大？（瓶颈效应）<br>
+      4️⃣ 如何科学回答小雅家的再生育问题？
+    </div>
+    <h1><i class="fas fa-dna"></i> 线粒体迷踪｜给小雅家的答案</h1>
+    <div class="case-banner" style="background:#ff8c0022; border-left:4px solid #ff8c00; padding:12px; border-radius:20px;">
+      <strong>👩‍⚕️ 真实病例改编：</strong> 小雅，6岁，确诊Leber遗传性视神经病变（线粒体病）。她的母亲携带突变但症状很轻，外公有病史。小雅的父母想再要一个孩子，他们问：“下一个孩子也会得病吗？风险有多高？”
+    </div>
+    <p>作为遗传咨询师，你需要先理解线粒体遗传规律，然后用模拟实验回答他们的问题。</p>
+    <div class="flex-buttons">
+      <button onclick="nextToPage2()">开始学习 <i class="fas fa-arrow-right"></i></button>
+    </div>
+  </div>
+  <div class="family-tree" id="familyTreeDemo"></div>
+  <div class="knowledge-tip" onclick="showTip('线粒体病母系遗传，父亲几乎不传递')"><i class="fas fa-lightbulb"></i> 提示</div>
+</section>
+
+<!-- ========================= 页面 2 ========================= -->
+<section class="page" id="page2">
+  <h1><i class="fas fa-female"></i> 母亲传递的秘密</h1>
+  <div class="fusion-lab">
+    <div class="gamete" style="display:flex; justify-content:center; gap:40px; margin-bottom:20px;">
+      <div class="sperm-cell" style="background:radial-gradient(#ccc,#6a6a6a); width:80px;height:80px;border-radius:50%; display:flex;align-items:center;justify-content:center; font-size:2rem;">🐳</div>
+      <div class="egg-cell" style="background:radial-gradient(#6d9eff,#1f4aa0); width:80px;height:80px;border-radius:50%; display:flex;align-items:center;justify-content:center; font-size:2rem;">🥚</div>
+    </div>
+    <button onclick="doFertilization()"><i class="fas fa-microscope"></i> 模拟受精</button>
+    <div id="explainText" style="margin-top:20px; background:#00000055; padding:12px; border-radius:28px;"></div>
+  </div>
+  <div id="maternalQuiz" style="display:none;" class="card">
+    <p><i class="fas fa-question-circle"></i> ✏️ 父亲患有线粒体疾病，他的女儿会患病吗？</p>
+    <div class="flex-buttons">
+      <button onclick="answerMaternal(true)">会患病</button>
+      <button onclick="answerMaternal(false)">不会患病</button>
+    </div>
+  </div>
+  <div class="progress-text"><i class="fas fa-info-circle"></i> 核心：母系遗传，精子线粒体不进入胚胎</div>
+</section>
+
+<!-- ========================= 页面 3 ========================= -->
+<section class="page" id="page3">
+  <h1><i class="fas fa-chart-line"></i> 突变比例·阈值效应</h1>
+  <div class="cell-grid" id="mitoGrid"></div>
+  <input type="range" id="mutSlider" min="0" max="100" value="70">
+  <div id="thresholdStatus" style="font-weight:bold; background:#0b1222; padding:8px 20px; border-radius:40px; margin-top:8px;">70% 突变 → 视力/肌肉症状</div>
+  <div class="organs">
+    <span><i class="fas fa-eye"></i> 眼睛</span>
+    <span><i class="fas fa-dumbbell"></i> 肌肉</span>
+    <span><i class="fas fa-brain"></i> 大脑</span>
+  </div>
+  
+  <!-- 预测挑战卡片 -->
+  <div class="card predict-panel">
+    <p><strong>🔮 遗传咨询师挑战：</strong> 小雅母亲的突变负荷是 <strong id="predictLoad">70</strong>%。<br>
+    在开始模拟之前，请预测：如果她再生一个孩子，这个孩子的突变比例平均值大约是多少？患病（>60%）的概率是多少？</p>
+    <div class="flex-buttons">
+      <input type="number" id="predictAvg" placeholder="平均突变 %" style="width:100px; background:#0f172a; border:1px solid #2d7fff; border-radius:40px; padding:8px; color:white;">
+      <input type="number" id="predictRisk" placeholder="患病概率 %" style="width:100px; background:#0f172a; border:1px solid #2d7fff; border-radius:40px; padding:8px; color:white;">
+      <button onclick="savePredictionAndGo()"><i class="fas fa-chart-simple"></i> 提交预测并开始模拟</button>
+    </div>
+    <div id="predictionResult" style="font-size:0.75rem; margin-top:8px;"></div>
+  </div>
+
+  <div class="flex-buttons">
+    <button id="newGroupBtn" style="background:#ff8c00;"><i class="fas fa-folder-plus"></i> 新建对比组并进入模拟区</button>
+  </div>
+  <div class="progress-text"><i class="fas fa-info-circle"></i> 调整滑块改变母亲假定突变负荷 → 点击橙色按钮创建实验组 → 进入第四页模拟生育</div>
+</section>
+
+<!-- ========================= 页面 4 ========================= -->
+<section class="page" id="page4">
+  <h1><i class="fas fa-dice-d6"></i> 瓶颈模拟·给小雅家答案</h1>
+  <div class="card case-banner" style="background:#1e2a3e;">
+    <strong>📋 小雅家档案：</strong> 母亲突变负荷 <strong id="caseMotherLoad">--</strong>%，已有一个患病女儿。模拟生育多次，观察后代突变分布。
+  </div>
+  <div class="card" style="text-align:center;">
+    <div>当前实验组：<strong id="currentGroupName">—</strong> (母亲负荷 <strong id="currentGroupLoad">—</strong>%)</div>
+    <div class="group-selector" id="groupSelector"></div>
+    <div class="flex-buttons">
+      <button onclick="simulateBirthInCurrentGroup()"><i class="fas fa-baby-carriage"></i> 模拟生育一次（3孩）</button>
+      <button onclick="resetCurrentGroup()"><i class="fas fa-trash-alt"></i> 清空当前组记录</button>
+    </div>
+  </div>
+
+  <!-- 对比模式控件 -->
+  <div class="stats-panel" id="comparePanel" style="display:none;">
+    <div class="compare-selector" style="display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
+      <span>对比组A：<select id="compareSelectA"></select></span>
+      <span>对比组B：<select id="compareSelectB"></select></span>
+      <button onclick="doCompare()"><i class="fas fa-chart-line"></i> 开始对比</button>
+      <button onclick="exitCompareMode()"><i class="fas fa-times-circle"></i> 退出对比</button>
+    </div>
+  </div>
+
+  <!-- 单组统计 -->
+  <div class="stats-panel" id="statsPanel">
+    <div class="stat-row" style="display:flex; justify-content:space-between; margin:6px 0;"><span>📊 模拟总次数</span><span id="totalSimCount">0</span></div>
+    <div class="stat-row"><span>👶 总计孩子数</span><span id="totalChildren">0</span></div>
+    <div class="stat-row"><span>📈 所有孩子平均突变比例</span><span id="avgMutation">—</span></div>
+    <div class="stat-row"><span>⚠️ 患病 (>60%) 比例</span><span id="sickRatio">—</span></div>
+    <div class="stat-row"><span>✅ 健康 (<20%) 比例</span><span id="healthyRatio">—</span></div>
+    <div id="predictionFeedback" style="margin-top:12px; background:#2a1e2a; border-radius:20px; padding:10px; font-size:0.75rem;"></div>
+  </div>
+
+  <!-- 直方图双模式 -->
+  <div class="stats-panel chart-container">
+    <div class="flex-buttons" style="margin-bottom:10px;">
+      <button id="btnFineHist" class="hist-mode-btn">📊 细粒度 (10%步长)</button>
+      <button id="btnClinicalHist" class="hist-mode-btn">🏥 临床分组 (阈值组)</button>
+    </div>
+    <div class="chart-title" id="chartTitle">📊 后代突变比例分布</div>
+    <canvas id="histogramCanvas" width="500" height="200"></canvas>
+    <div id="compareHint" style="font-size:0.65rem; color:#aaa; margin-top:6px;"></div>
+  </div>
+
+  <div class="stats-panel">
+    <div style="font-weight:bold; margin-bottom:6px;"><i class="fas fa-list"></i> 模拟记录（给小雅家的答案）</div>
+    <div id="historyList" class="history-list">暂无记录，请先创建实验组并模拟</div>
+  </div>
+  <div id="dynamicConclusion" class="conclusion"></div>
+
+  <!-- 教师/家长使用指南与科学依据 -->
+  <div class="card" style="background:#0f172a; margin-top:8px;">
+    <details>
+      <summary style="font-weight:bold; cursor:pointer;"><i class="fas fa-chalkboard-user"></i> 📚 教学建议 & 科学依据</summary>
+      <div style="margin-top:12px; font-size:0.8rem;">
+        <p><strong>🧑‍🏫 课堂适用：</strong> 高中生物“遗传与进化”、大学医学遗传学。建议配合20分钟小组讨论。</p>
+        <p><strong>📖 科学原理：</strong> 线粒体DNA母系遗传；阈值效应（>60%突变通常出现症状）；瓶颈效应（卵母细胞分裂时线粒体随机分配，导致后代突变比例大幅波动）。</p>
+        <p><strong>🔗 参考文献：</strong> Wallace DC. Mitochondrial DNA mutations in disease and aging. Environmental and molecular mutagenesis. 2010; Chinnery PF, Hudson G. Mitochondrial genetics. British medical bulletin. 2013.</p>
+        <p><strong>🤖 AI使用声明：</strong> 本作品核心代码由人类开发者编写，未使用AI生成主要内容；辅助使用AI工具进行代码格式整理，占比小于5%，已人工审核。</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ========================= 页面 5 ========================= -->
+<section class="page" id="page5">
+  <h1><i class="fas fa-file-signature"></i> 给小雅家的遗传咨询意见书</h1>
+  <div class="card">
+    <div id="reportSummary" style="background:#071126; padding:16px; border-radius:28px; margin-bottom:16px;"></div>
+    <div class="flex-buttons">
+      <button onclick="resetAll()"><i class="fas fa-undo-alt"></i> 重新开始</button>
+    </div>
+  </div>
+  <div class="progress-text"><i class="fas fa-heartbeat"></i> 本工具为科普教学模拟，临床决策请咨询专业医师</div>
+</section>
+
+<div class="bottom-nav">
+  <button class="nav-btn" onclick="navigatePrev()"><i class="fas fa-chevron-left"></i> 上一页</button>
+  <span id="pageIndicator" style="color:#aaf;">第1/5页</span>
+  <button class="nav-btn" onclick="navigateNext()">下一页 <i class="fas fa-chevron-right"></i></button>
+  <button class="nav-btn" onclick="resetAll()"><i class="fas fa-sync-alt"></i> 重置</button>
+</div>
+
+<script>
+// ------------------- 全局数据 -------------------
+let experiments = [];
+let nextId = 1;
+let currentGroupId = null;
+let compareModeActive = false;
+let histMode = "fine";
+let maternalPassed = false;
+let userPrediction = { avg: null, risk: null };
+
+// 页面导航
+const pages = [null, document.getElementById('page1'), document.getElementById('page2'), document.getElementById('page3'), document.getElementById('page4'), document.getElementById('page5')];
+let currentPageIdx = 1;
+
+function showPage(n) {
+  if (n<1) n=1; if (n>5) n=5;
+  for(let i=1;i<=5;i++) if(pages[i]) pages[i].classList.remove('active');
+  pages[n].classList.add('active');
+  currentPageIdx = n;
+  document.getElementById('pageIndicator').innerText = `第${n}/5页`;
+  if (n===3) {
+    rebuildMitoGrid();
+    const s = document.getElementById('mutSlider');
+    if (s) s.value = getSliderValue();
+    updateThresholdUI();
+    document.getElementById('predictLoad').innerText = getSliderValue();
+  }
+  if (n===4) {
+    refreshGroupSelector();
+    if (currentGroupId && experiments.find(e=>e.id===currentGroupId)) refreshCurrentGroupDisplay();
+    else if (experiments.length) setCurrentGroup(experiments[0].id);
+    else {
+      document.getElementById('currentGroupName').innerText = '无';
+      document.getElementById('currentGroupLoad').innerText = '-';
+      document.getElementById('historyList').innerHTML = '<div style="padding:12px;text-align:center;">⚠️ 请先到第3页点击橙色按钮创建实验组</div>';
+    }
+    const group = getCurrentGroup();
+    if(group) document.getElementById('caseMotherLoad').innerText = group.motherPercent+'%';
+    else document.getElementById('caseMotherLoad').innerText = '--';
+  }
+  if (n===5) generateReport();
+}
+
+function navigatePrev() {
+  if (currentPageIdx===2 && !maternalPassed) { showTip('请先完成母系教学'); return; }
+  showPage(currentPageIdx-1);
+}
+function navigateNext() {
+  if (currentPageIdx===2 && !maternalPassed) { showTip('请先完成母系教学'); return; }
+  if (currentPageIdx===3 && experiments.length===0) { showTip('请先点击橙色按钮创建实验组'); return; }
+  showPage(currentPageIdx+1);
+}
+
+// 滑块值
+function getSliderValue() { return parseInt(document.getElementById('mutSlider').value); }
+
+// 线粒体网格
+function rebuildMitoGrid() {
+  const grid = document.getElementById('mitoGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  for(let i=0;i<100;i++) { let d=document.createElement('div'); d.className='mito-dot'; d.style.background='#2ecc71'; grid.appendChild(d); }
+}
+function updateThresholdUI() {
+  let val = getSliderValue();
+  let dots = document.querySelectorAll('#mitoGrid .mito-dot');
+  for(let i=0;i<dots.length;i++) dots[i].style.background = (i<val) ? '#e34234' : '#2ecc71';
+  let msg='', eye=false, muscle=false, brain=false;
+  if(val<20) msg=val+'% → 健康';
+  else if(val<60) { msg=val+'% → 轻度疲劳'; eye=true; }
+  else if(val<85) { msg=val+'% → 视力/肌肉症状'; eye=true; muscle=true; }
+  else { msg=val+'% → 严重多器官疾病'; eye=true; muscle=true; brain=true; }
+  document.getElementById('thresholdStatus').innerText = msg;
+}
+
+// 预测与跳转闭环
+function savePredictionAndGo() {
+  let avg = parseInt(document.getElementById('predictAvg').value);
+  let risk = parseInt(document.getElementById('predictRisk').value);
+  if (isNaN(avg) || isNaN(risk)) { showTip('请填写数字'); return; }
+  userPrediction = { avg, risk };
+  showTip(`预测已保存：平均突变 ${avg}%，患病概率 ${risk}%。即将进入模拟区。`);
+  document.getElementById('predictionResult').innerHTML = `✅ 你的预测已记录。进入实验区后将与真实数据对比。`;
+  // 自动创建实验组（基于当前滑块负荷）
+  if(experiments.length===0) {
+    const load = getSliderValue();
+    const newGroup = { id: nextId++, motherPercent: load, births: [] };
+    experiments.push(newGroup);
+    setCurrentGroup(newGroup.id);
+  } else {
+    // 如果已有组但当前滑块改变，也创建一个新组以匹配预测
+    const load = getSliderValue();
+    const newGroup = { id: nextId++, motherPercent: load, births: [] };
+    experiments.push(newGroup);
+    setCurrentGroup(newGroup.id);
+  }
+  showPage(4);
+}
+
+// 新建实验组
+function createNewGroup() {
+  const load = getSliderValue();
+  const newGroup = { id: nextId++, motherPercent: load, births: [] };
+  experiments.push(newGroup);
+  setCurrentGroup(newGroup.id);
+  showTip(`新建实验组：母亲负荷 ${load}%，已跳转到模拟区`);
+  showPage(4);
+}
+
+function setCurrentGroup(id) {
+  currentGroupId = id;
+  if (compareModeActive) exitCompareMode();
+  if (currentPageIdx === 4) {
+    refreshGroupSelector();
+    refreshCurrentGroupDisplay();
+    const group = experiments.find(g=>g.id===id);
+    if(group) document.getElementById('caseMotherLoad').innerText = group.motherPercent+'%';
+  }
+}
+
+function refreshGroupSelector() {
+  const container = document.getElementById('groupSelector');
+  if (!container) return;
+  container.innerHTML = '<span style="font-size:0.75rem;">📁 实验组：</span>';
+  experiments.forEach(exp => {
+    const badge = document.createElement('span');
+    badge.className = 'group-badge';
+    if (currentGroupId === exp.id && !compareModeActive) badge.classList.add('active');
+    badge.innerText = `负荷${exp.motherPercent}% (${exp.births.length}次)`;
+    badge.onclick = () => { if(!compareModeActive) setCurrentGroup(exp.id); else showTip('请先退出对比模式'); };
+    container.appendChild(badge);
+  });
+  const newBtn = document.createElement('button');
+  newBtn.innerHTML = '<i class="fas fa-plus"></i> 新建对比组（重新选择负荷）';
+  newBtn.style.background = '#3a6ea5'; newBtn.style.padding = '6px 14px'; newBtn.style.fontSize = '0.7rem';
+  newBtn.onclick = () => {
+    if (compareModeActive) exitCompareMode();
+    showPage(3);
+    showTip('请在第三页调整负荷后点击橙色按钮创建新组');
+  };
+  container.appendChild(newBtn);
+}
+
+function getCurrentGroup() { return experiments.find(g=>g.id===currentGroupId); }
+
+// 瓶颈采样（每个孩子独立随机）
+function bottleneckSample(mother) {
+  let d = (Math.random() - 0.5) * 70;
+  return Math.min(100, Math.max(0, Math.round(mother + d)));
+}
+
+function simulateBirthInCurrentGroup() {
+  if (compareModeActive) { showTip('请先退出对比模式'); return; }
+  const group = getCurrentGroup();
+  if (!group) { showTip('请先创建实验组'); return; }
+  const children = [
+    bottleneckSample(group.motherPercent),
+    bottleneckSample(group.motherPercent),
+    bottleneckSample(group.motherPercent)
+  ];
+  group.births.push({ motherPercent: group.motherPercent, children: children });
+  refreshCurrentGroupDisplay();
+  showTip(`生育：孩子突变比例 ${children[0]}%, ${children[1]}%, ${children[2]}%`);
+}
+
+function resetCurrentGroup() {
+  if (compareModeActive) { showTip('请先退出对比模式'); return; }
+  const group = getCurrentGroup();
+  if(group) { group.births = []; refreshCurrentGroupDisplay(); showTip(`已清空组 ${group.motherPercent}% 记录`); }
+}
+
+function getSymptom(p) { if(p<20) return '✅健康'; if(p<60) return '⚠️轻度异常'; if(p<85) return '👁️视力/肌肉'; return '🧠严重疾病'; }
+
+function refreshCurrentGroupDisplay() {
+  const group = getCurrentGroup();
+  if (!group || compareModeActive) return;
+  document.getElementById('currentGroupName').innerText = `组 ${group.motherPercent}%`;
+  document.getElementById('currentGroupLoad').innerText = group.motherPercent;
+  let allChildren = [];
+  for(let b of group.births) allChildren.push(...b.children);
+  let totalBirths = group.births.length, totalChildren = allChildren.length;
+  document.getElementById('totalSimCount').innerText = totalBirths;
+  document.getElementById('totalChildren').innerText = totalChildren;
+  if(totalChildren===0) {
+    document.getElementById('avgMutation').innerText='—'; document.getElementById('sickRatio').innerText='—'; document.getElementById('healthyRatio').innerText='—';
+    document.getElementById('historyList').innerHTML='暂无记录';
+    document.getElementById('dynamicConclusion').innerHTML='👆 开始模拟生育，给小雅家答案';
+    drawHistogram([]);
+    document.getElementById('chartTitle').innerHTML = `📊 突变分布（负荷 ${group.motherPercent}%）`;
+    document.getElementById('predictionFeedback').innerHTML = '';
+    return;
+  }
+  let avg = allChildren.reduce((a,b)=>a+b,0)/totalChildren;
+  let sick = allChildren.filter(p=>p>60).length;
+  let healthy = allChildren.filter(p=>p<20).length;
+  document.getElementById('avgMutation').innerHTML = avg.toFixed(1)+'%';
+  document.getElementById('sickRatio').innerHTML = `${(sick/totalChildren*100).toFixed(1)}% (${sick}/${totalChildren})`;
+  document.getElementById('healthyRatio').innerHTML = `${(healthy/totalChildren*100).toFixed(1)}% (${healthy}/${totalChildren})`;
+  
+  let feedbackHtml = '';
+  if (userPrediction.avg !== null) {
+    let diffAvg = Math.abs(avg - userPrediction.avg);
+    let riskReal = (sick/totalChildren*100).toFixed(1);
+    feedbackHtml = `<strong>🔍 你的预测回顾：</strong> 你预测平均突变 ${userPrediction.avg}%，实际 ${avg.toFixed(1)}%（差 ${diffAvg.toFixed(1)}%）。<br>
+    预测患病概率 ${userPrediction.risk}%，实际 ${riskReal}%。瓶颈效应导致随机性远超直觉。`;
+  } else {
+    feedbackHtml = `<strong>💡 提示：</strong> 在第三页提交过预测吗？没有的话可以返回试试，对比你的直觉与真实模拟结果。`;
+  }
+  document.getElementById('predictionFeedback').innerHTML = feedbackHtml;
+  
+  let histHtml = '';
+  for(let i=0;i<group.births.length;i++) {
+    let b=group.births[i];
+    let chHtml = b.children.map((c,idx)=>`<span>👶${idx+1}: ${c}% (${getSymptom(c)})</span>`).join(' · ');
+    histHtml += `<div class="history-item"><div class="history-header"><span>📅 第${i+1}次</span><span>👩 母亲负荷: ${b.motherPercent}%</span></div><div class="children-detail">${chHtml}</div></div>`;
+  }
+  document.getElementById('historyList').innerHTML = histHtml;
+  let conclusion = `📊 基于 ${totalBirths} 次生育（${totalChildren}孩）：母亲负荷 ${group.motherPercent}% → 后代平均 ${avg.toFixed(1)}%，患病风险 ${(sick/totalChildren*100).toFixed(1)}%。瓶颈效应导致无法精确预测单次生育。`;
+  document.getElementById('dynamicConclusion').innerHTML = conclusion;
+  document.getElementById('chartTitle').innerHTML = `📊 突变分布（负荷 ${group.motherPercent}%）`;
+  drawHistogram(allChildren);
+}
+
+function drawHistogram(data) {
+  const canvas = document.getElementById('histogramCanvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const container = canvas.parentElement;
+  const maxW = Math.min(500, container.clientWidth - 24);
+  canvas.width = maxW; canvas.height = 200;
+  canvas.style.width = `${maxW}px`;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(data.length===0) { ctx.fillStyle='#aaa'; ctx.fillText('无数据',20,40); return; }
+  if(histMode === 'fine') {
+    let bins = new Array(10).fill(0);
+    data.forEach(v => { let idx = Math.min(9, Math.floor(v/10)); bins[idx]++; });
+    let maxCount = Math.max(...bins,1);
+    let barWidth = (canvas.width - 80) / 10;
+    let labels = ['0-10','10-20','20-30','30-40','40-50','50-60','60-70','70-80','80-90','90-100'];
+    let colors = ['#2ecc71','#2ecc71','#f1c40f','#f1c40f','#f1c40f','#e67e22','#e34234','#e34234','#9b59b6','#9b59b6'];
+    for(let i=0;i<10;i++) {
+      let h = (bins[i]/maxCount)*(canvas.height-50);
+      if(h<4 && bins[i]>0) h=8;
+      ctx.fillStyle = colors[i];
+      ctx.fillRect(60 + i*barWidth, canvas.height-h-20, barWidth-4, h);
+      ctx.fillStyle='#ddd'; ctx.font='8px sans-serif';
+      ctx.fillText(labels[i], 60+i*barWidth+2, canvas.height-8);
+      ctx.fillStyle='#fff'; ctx.fillText(bins[i], 60+i*barWidth+barWidth/2-5, canvas.height-h-25);
+    }
+    ctx.fillStyle='#ccc'; ctx.fillText('突变比例 (%)', canvas.width/2-40, canvas.height-5);
+  } else {
+    let bins = [0,0,0,0];
+    data.forEach(v => { if(v<20) bins[0]++; else if(v<60) bins[1]++; else if(v<85) bins[2]++; else bins[3]++; });
+    let maxCount = Math.max(...bins,1);
+    let barWidth = (canvas.width - 80) / 4;
+    let labels = ['<20%健康','20-60%轻度','60-85%症状','≥85%重症'];
+    let colors = ['#2ecc71','#f1c40f','#e67e22','#e34234'];
+    for(let i=0;i<4;i++) {
+      let h = (bins[i]/maxCount)*(canvas.height-50);
+      if(h<4 && bins[i]>0) h=8;
+      ctx.fillStyle = colors[i];
+      ctx.fillRect(60 + i*barWidth, canvas.height-h-20, barWidth-4, h);
+      ctx.fillStyle='#ddd'; ctx.font='8px sans-serif';
+      ctx.fillText(labels[i], 60+i*barWidth+2, canvas.height-8);
+      ctx.fillStyle='#fff'; ctx.fillText(bins[i], 60+i*barWidth+barWidth/2-5, canvas.height-h-25);
+    }
+    ctx.fillStyle='#ccc'; ctx.fillText('临床分组', canvas.width/2-30, canvas.height-5);
+  }
+}
+
+// 对比模式
+function enableCompareUI() {
+  if(experiments.length < 2) { showTip('需要至少两个实验组才能对比'); return; }
+  compareModeActive = true;
+  document.getElementById('comparePanel').style.display = 'block';
+  document.getElementById('statsPanel').style.display = 'none';
+  document.getElementById('historyList').parentElement.style.display = 'none';
+  const selA = document.getElementById('compareSelectA');
+  const selB = document.getElementById('compareSelectB');
+  selA.innerHTML = ''; selB.innerHTML = '';
+  experiments.forEach(exp => {
+    let optA = document.createElement('option'); optA.value = exp.id; optA.text = `负荷${exp.motherPercent}% (${exp.births.length}次)`;
+    let optB = optA.cloneNode(true);
+    selA.appendChild(optA); selB.appendChild(optB);
+  });
+  if(experiments[0]) selA.value = experiments[0].id;
+  if(experiments[1]) selB.value = experiments[1].id;
+  doCompare();
+}
+function doCompare() {
+  const idA = parseInt(document.getElementById('compareSelectA').value);
+  const idB = parseInt(document.getElementById('compareSelectB').value);
+  const groupA = experiments.find(g=>g.id===idA);
+  const groupB = experiments.find(g=>g.id===idB);
+  if(!groupA || !groupB) return;
+  let dataA=[], dataB=[];
+  for(let b of groupA.births) dataA.push(...b.children);
+  for(let b of groupB.births) dataB.push(...b.children);
+  drawComparativeHistogram(dataA, dataB, groupA.motherPercent, groupB.motherPercent);
+  let avgA = dataA.length ? (dataA.reduce((s,v)=>s+v,0)/dataA.length).toFixed(1) : '无数据';
+  let avgB = dataB.length ? (dataB.reduce((s,v)=>s+v,0)/dataB.length).toFixed(1) : '无数据';
+  document.getElementById('dynamicConclusion').innerHTML = `📊 对比：组A(负荷${groupA.motherPercent}%) 平均 ${avgA}%，组B(负荷${groupB.motherPercent}%) 平均 ${avgB}%。`;
+  document.getElementById('chartTitle').innerHTML = `对比模式：${groupA.motherPercent}% vs ${groupB.motherPercent}%`;
+}
+function drawComparativeHistogram(dataA, dataB, labelA, labelB) {
+  const canvas = document.getElementById('histogramCanvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const container = canvas.parentElement;
+  const maxW = Math.min(500, container.clientWidth - 24);
+  canvas.width = maxW; canvas.height = 200;
+  canvas.style.width = `${maxW}px`;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  let binsA = new Array(10).fill(0), binsB = new Array(10).fill(0);
+  dataA.forEach(v=>{ let idx=Math.min(9,Math.floor(v/10)); binsA[idx]++; });
+  dataB.forEach(v=>{ let idx=Math.min(9,Math.floor(v/10)); binsB[idx]++; });
+  let maxCount = Math.max(...binsA, ...binsB, 1);
+  let barWidth = (canvas.width - 80) / 10;
+  for(let i=0;i<10;i++) {
+    let hA = (binsA[i]/maxCount)*(canvas.height-50);
+    let hB = (binsB[i]/maxCount)*(canvas.height-50);
+    if(hA<4 && binsA[i]>0) hA=8; if(hB<4 && binsB[i]>0) hB=8;
+    let x = 60 + i*barWidth;
+    ctx.fillStyle = '#3a86ff';
+    ctx.fillRect(x, canvas.height-hA-20, barWidth/2-2, hA);
+    ctx.fillStyle = '#ff9e3a';
+    ctx.fillRect(x+barWidth/2, canvas.height-hB-20, barWidth/2-2, hB);
+  }
+  ctx.fillStyle='#3a86ff'; ctx.fillRect(10,10,12,12); ctx.fillStyle='#ff9e3a'; ctx.fillRect(10,30,12,12);
+  ctx.fillStyle='#ccc'; ctx.fillText(`${labelA}%`, 25, 20); ctx.fillText(`${labelB}%`, 25, 40);
+}
+function exitCompareMode() {
+  compareModeActive = false;
+  document.getElementById('comparePanel').style.display = 'none';
+  document.getElementById('statsPanel').style.display = 'block';
+  document.getElementById('historyList').parentElement.style.display = 'block';
+  refreshCurrentGroupDisplay();
+}
+
+function generateReport() {
+  let html = '';
+  if(experiments.length===0) html='<p>暂无实验数据，请先进行瓶颈模拟。</p>';
+  else {
+    html = '<ul style="padding-left:20px;">';
+    for(let exp of experiments) {
+      let allC = [];
+      for(let b of exp.births) allC.push(...b.children);
+      let avg = allC.length ? (allC.reduce((a,b)=>a+b,0)/allC.length).toFixed(1) : '无数据';
+      html += `<li>母亲负荷 ${exp.motherPercent}%：${exp.births.length}次生育，后代平均突变 ${avg}%</li>`;
+    }
+    html += '</ul><p>💡 <strong>给小雅家的结论：</strong> 母亲突变负荷越高，后代平均风险越高，但单次生育结果高度随机（瓶颈效应）。建议进行产前基因检测或胚胎植入前遗传学检测。线粒体置换疗法为高风险家庭提供新选择。</p>';
+  }
+  document.getElementById('reportSummary').innerHTML = html;
+}
+
+function resetAll() {
+  experiments = []; nextId=1; currentGroupId=null; compareModeActive=false; maternalPassed=false; userPrediction = { avg: null, risk: null };
+  document.getElementById('explainText').innerHTML='';
+  document.getElementById('maternalQuiz').style.display='none';
+  document.getElementById('predictAvg').value = ''; document.getElementById('predictRisk').value = '';
+  document.getElementById('predictionResult').innerHTML = '';
+  const slider=document.getElementById('mutSlider'); if(slider) slider.value='70';
+  rebuildMitoGrid(); updateThresholdUI();
+  showPage(1); showTip('已完全重置');
+}
+
+let toastTimer;
+function showTip(msg) { let t=document.querySelector('.toast-msg'); if(t) t.remove(); let d=document.createElement('div'); d.className='toast-msg'; d.innerText=msg; document.body.appendChild(d); if(toastTimer) clearTimeout(toastTimer); toastTimer=setTimeout(()=>d.remove(),2500); }
+function doFertilization() { document.getElementById('explainText').innerHTML='🧫 受精完成！精子线粒体被清除，胚胎线粒体全部来自卵子。<br><i class="fas fa-check-circle"></i> ✅ 父系不传递线粒体DNA。'; setTimeout(()=>document.getElementById('maternalQuiz').style.display='block',800); }
+function answerMaternal(isAffected) { if(isAffected===false) { showTip('回答正确！父亲疾病不会传给子女。'); maternalPassed=true; document.getElementById('maternalQuiz').style.display='none'; } else showTip('不对，父亲线粒体DNA不遗传给子女。'); }
+function nextToPage2() { showPage(2); }
+function renderFamilyTree() { document.getElementById('familyTreeDemo').innerHTML=`<div class="member"><div class="avatar affected"><i class="fas fa-user"></i></div><div class="name">外公(患病)</div></div><div class="member"><div class="avatar carrier"><i class="fas fa-female"></i></div><div class="name">母亲(携带者)</div></div><div class="member"><div class="avatar affected"><i class="fas fa-child"></i></div><div class="name">小雅(患儿)</div></div><div class="member"><div class="avatar"><i class="fas fa-question"></i></div><div class="name">未来的孩子</div></div>`; }
+
+window.addEventListener('load',()=>{
+  renderFamilyTree(); rebuildMitoGrid();
+  const slider=document.getElementById('mutSlider'); if(slider) slider.addEventListener('input',()=>updateThresholdUI());
+  updateThresholdUI();
+  document.getElementById('newGroupBtn').onclick = ()=>{ createNewGroup(); };
+  document.getElementById('btnFineHist').onclick = ()=>{ histMode='fine'; if(!compareModeActive && getCurrentGroup()) refreshCurrentGroupDisplay(); else if(compareModeActive) doCompare(); };
+  document.getElementById('btnClinicalHist').onclick = ()=>{ histMode='clinical'; if(!compareModeActive && getCurrentGroup()) refreshCurrentGroupDisplay(); else if(compareModeActive) doCompare(); };
+  document.getElementById('comparePanel').style.display = 'none';
+  const compareBtn = document.createElement('button'); compareBtn.innerHTML='<i class="fas fa-chart-bar"></i> 对比模式（自选两组）'; compareBtn.onclick=()=>enableCompareUI();
+  document.querySelector('#page4 .flex-buttons').appendChild(compareBtn);
+});
+</script>
+</body>
+</html>
