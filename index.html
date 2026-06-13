@@ -27,7 +27,6 @@ html {
   scroll-behavior: smooth;
 }
 
-/* 页面容器 */
 .page {
   display: none;
   flex-direction: column;
@@ -47,7 +46,6 @@ html {
   to { opacity: 1; transform: translateY(0);}
 }
 
-/* 卡片通用样式 */
 .card, .stats-panel, .fusion-lab, .predict-panel, .conclusion {
   background: rgba(18, 28, 45, 0.75);
   backdrop-filter: blur(8px);
@@ -129,7 +127,6 @@ button:hover { background: #4791ff; transform: translateY(-1px); }
   margin: 0;
 }
 
-/* 语音控制条 (含进度条) */
 .voice-bar {
   position: fixed;
   bottom: 70px;
@@ -163,7 +160,6 @@ button:hover { background: #4791ff; transform: translateY(-1px); }
   color: #aaa;
   margin-left: 4px;
 }
-/* 音频进度条样式 */
 .voice-bar input[type="range"] {
   width: 100px;
   min-height: unset;
@@ -190,7 +186,6 @@ button:hover { background: #4791ff; transform: translateY(-1px); }
   .voice-bar input[type="range"] { width: 60px; }
 }
 
-/* 家族树 */
 .family-tree {
   background: #0f172a;
   border-radius: 48px;
@@ -221,13 +216,11 @@ button:hover { background: #4791ff; transform: translateY(-1px); }
   font-size: 2rem;
   margin-bottom: 6px;
   border: 2px solid #5f8ac0;
-  transition: 0.1s;
 }
 
 .avatar.affected { background: #b91c1c; border-color: #ff8a8a; }
 .avatar.carrier { background: #b85c1c; border-color: #ffb347; }
 
-/* 线粒体网格 */
 .cell-grid {
   width: 280px;
   height: 280px;
@@ -248,7 +241,6 @@ button:hover { background: #4791ff; transform: translateY(-1px); }
   transition: background 0.05s linear;
 }
 
-/* 器官指示器 */
 .organs {
   display: flex;
   justify-content: space-around;
@@ -296,7 +288,6 @@ canvas {
   border-left: 4px solid #2d7fff;
 }
 
-/* 滑块美化 + 增大触摸区域 */
 input[type="range"] {
   width: 80%;
   margin: 16px auto;
@@ -304,7 +295,7 @@ input[type="range"] {
   background: #1e2a47;
   border-radius: 10px;
   height: 8px;
-  min-height: 44px; /* 移动端触摸区域 */
+  min-height: 44px;
 }
 
 input[type="range"]:focus {
@@ -367,7 +358,6 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 0.9rem;
 }
 
-/* 对比模式图例内嵌 */
 .compare-legend {
   display: flex;
   justify-content: center;
@@ -383,7 +373,6 @@ input[type="range"]::-webkit-slider-thumb {
   margin-right: 5px;
 }
 
-/* 教师模式折叠块 */
 .details-card {
   background: #0f172a;
   margin-top: 8px;
@@ -408,7 +397,6 @@ input[type="range"]::-webkit-slider-thumb {
 </head>
 <body>
 
-<!-- 页面结构 -->
 <section class="page active" id="page1">
   <div class="card">
     <div class="learning-goal">
@@ -425,7 +413,8 @@ input[type="range"]::-webkit-slider-thumb {
     </div>
     <p>作为遗传咨询师，你需要先理解线粒体遗传规律，然后用模拟实验回答他们的问题。</p>
     <div class="flex-buttons">
-      <button onclick="window.nextToPage2()">开始学习 <i class="fas fa-arrow-right"></i></button>
+      <!-- 全新的引导按钮：第一次提示 + 第二次换页 -->
+      <button id="startLearningBtn">🎧 开始探索 | 点击此处</button>
     </div>
   </div>
   <div class="family-tree" id="familyTreeDemo"></div>
@@ -558,7 +547,6 @@ input[type="range"]::-webkit-slider-thumb {
   <button class="nav-btn" onclick="window.resetAll()"><i class="fas fa-sync-alt"></i> 重置</button>
 </div>
 
-<!-- 语音控制悬浮条（含进度条） -->
 <div class="voice-bar" id="voiceBar">
   <input type="range" id="voiceProgress" value="0" step="0.01" min="0" max="100" aria-label="音频进度">
   <button id="voicePlayBtn" title="播放/暂停"><i class="fas fa-play"></i></button>
@@ -568,81 +556,71 @@ input[type="range"]::-webkit-slider-thumb {
 </div>
 
 <script>
-// 封装核心数据与函数
 (function(){
-  // ---------- 全局数据 ----------
   let experiments = [];
   let nextId = 1;
   let currentGroupId = null;
   let compareModeActive = false;
-  let histMode = "fine";  // fine / clinical
+  let histMode = "fine";
   let maternalPassed = false;
   let userPrediction = { avg: null, risk: null };
   
-  // ---------- 语音模块 ----------
+  // ----- 第一页引导新逻辑 -----
+  let page1GuideCompleted = false;      // 是否已完成引导（允许进入第二页）
+  let page1AwaitingSecond = false;      // 第一次点击按钮后等待二次确认
+  let page1OnceClickHandler = null;     // 一次性全局监听（点击其他区域播放音频）
+  
+  // 语音模块
   let currentAudio = null;
   let autoPlayEnabled = true;
   let userInteracted = false;
-  let isSeeking = false;          // 防止拖动进度条时重复触发 timeupdate
+  let isSeeking = false;
   const voiceProgress = document.getElementById('voiceProgress');
   
-  // 页面语音映射（请将实际的mp3文件放置于相同目录）
   const pageVoiceMap = {
     1: 'voice_intro.mp3',
     2: 'voice_maternal.mp3',
     3: 'voice_threshold.mp3',
     4: 'voice_bottleneck.mp3'
-    // 第五页无语音映射
   };
   
-  // 更新进度条
   function updateProgress() {
     if (!currentAudio || isSeeking) return;
     if (voiceProgress && currentAudio.duration && isFinite(currentAudio.duration)) {
-      const percent = (currentAudio.currentTime / currentAudio.duration) * 100;
-      voiceProgress.value = percent;
+      voiceProgress.value = (currentAudio.currentTime / currentAudio.duration) * 100;
     }
   }
   
-  // 音频结束
   function onAudioEnded() {
     const playBtn = document.getElementById('voicePlayBtn');
     if (playBtn) playBtn.innerHTML = '<i class="fas fa-play"></i>';
     if (voiceProgress) voiceProgress.value = 0;
   }
   
-  // 播放指定页面的语音（第五页强制静音）
   function playPageVoice(pageNum) {
-    if (pageNum === 5) return;      // 第五页绝不播放任何音频
+    if (pageNum === 5) return;
     if (!autoPlayEnabled) return;
     const src = pageVoiceMap[pageNum];
     if (!src) return;
-    
-    // 停止并清理旧音频的事件监听
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.removeEventListener('timeupdate', updateProgress);
       currentAudio.removeEventListener('ended', onAudioEnded);
       currentAudio = null;
     }
-    
     currentAudio = new Audio(src);
     currentAudio.addEventListener('timeupdate', updateProgress);
     currentAudio.addEventListener('ended', onAudioEnded);
-    currentAudio.play().catch(e => {
-      console.log('自动播放被阻止，等待用户首次交互');
-    });
-    
+    currentAudio.play().catch(e => console.log('自动播放需要用户交互', e));
     const playBtn = document.getElementById('voicePlayBtn');
     if (playBtn) playBtn.innerHTML = '<i class="fas fa-pause"></i>';
     if (voiceProgress) voiceProgress.value = 0;
   }
   
-  // 手动播放/暂停
   function toggleVoicePlay() {
     if (!currentAudio) return;
     if (currentAudio.paused) {
-      currentAudio.play().catch(e => console.log);
+      currentAudio.play();
       document.getElementById('voicePlayBtn').innerHTML = '<i class="fas fa-pause"></i>';
     } else {
       currentAudio.pause();
@@ -650,18 +628,15 @@ input[type="range"]::-webkit-slider-thumb {
     }
   }
   
-  // 停止音频并重置进度
   function stopVoice() {
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.currentTime = 0;
-      const playBtn = document.getElementById('voicePlayBtn');
-      if (playBtn) playBtn.innerHTML = '<i class="fas fa-play"></i>';
+      document.getElementById('voicePlayBtn').innerHTML = '<i class="fas fa-play"></i>';
       if (voiceProgress) voiceProgress.value = 0;
     }
   }
   
-  // 关闭/开启自动播放
   function toggleAutoPlay() {
     autoPlayEnabled = !autoPlayEnabled;
     const muteBtn = document.getElementById('voiceMuteAutoBtn');
@@ -669,10 +644,7 @@ input[type="range"]::-webkit-slider-thumb {
     if (autoPlayEnabled) {
       muteBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
       statusSpan.innerText = '自动播放开';
-      // 尝试播放当前页语音（第五页不会播放）
-      if (currentPageIdx >= 1 && currentPageIdx <= 4) {
-        playPageVoice(currentPageIdx);
-      }
+      if (currentPageIdx >= 1 && currentPageIdx <= 4) playPageVoice(currentPageIdx);
     } else {
       muteBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
       statusSpan.innerText = '自动播放关';
@@ -680,13 +652,11 @@ input[type="range"]::-webkit-slider-thumb {
     }
   }
   
-  // 浏览器自动播放策略解锁
   function enableAudioContext() {
     if (!userInteracted) {
       userInteracted = true;
       if (window.AudioContext || window.webkitAudioContext) {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        audioCtx.resume().then(() => console.log('音频上下文已解锁'));
+        new (window.AudioContext || window.webkitAudioContext)().resume();
       }
       if (autoPlayEnabled && currentPageIdx >= 1 && currentPageIdx <= 4) {
         playPageVoice(currentPageIdx);
@@ -694,23 +664,19 @@ input[type="range"]::-webkit-slider-thumb {
     }
   }
   
-  // 进度条拖动控制
   if (voiceProgress) {
     voiceProgress.addEventListener('input', function(e) {
       if (!currentAudio || !currentAudio.duration || !isFinite(currentAudio.duration)) return;
       isSeeking = true;
-      const seekTime = (parseFloat(e.target.value) / 100) * currentAudio.duration;
-      currentAudio.currentTime = seekTime;
+      currentAudio.currentTime = (parseFloat(e.target.value) / 100) * currentAudio.duration;
       setTimeout(() => { isSeeking = false; }, 50);
     });
   }
   
-  // 绑定语音控件事件
   document.getElementById('voicePlayBtn')?.addEventListener('click', toggleVoicePlay);
   document.getElementById('voiceStopBtn')?.addEventListener('click', stopVoice);
   document.getElementById('voiceMuteAutoBtn')?.addEventListener('click', toggleAutoPlay);
   
-  // 全局点击解锁自动播放
   document.body.addEventListener('click', function once() {
     enableAudioContext();
     document.body.removeEventListener('click', once);
@@ -719,7 +685,7 @@ input[type="range"]::-webkit-slider-thumb {
     if (e.target.closest('button') && !userInteracted) enableAudioContext();
   });
   
-  // 辅助函数：显示提示
+  // 辅助函数
   let toastTimer;
   window.showTip = function(msg) {
     let t = document.querySelector('.toast-msg');
@@ -732,11 +698,9 @@ input[type="range"]::-webkit-slider-thumb {
     toastTimer = setTimeout(() => d.remove(), 2500);
   };
   
-  // 保存数据到localStorage
   function saveToLocal() {
     try {
-      const data = { experiments, nextId, currentGroupId, userPrediction, maternalPassed };
-      localStorage.setItem('mitoSimulator', JSON.stringify(data));
+      localStorage.setItem('mitoSimulator', JSON.stringify({ experiments, nextId, currentGroupId, userPrediction, maternalPassed, page1GuideCompleted }));
     } catch(e) {}
   }
   
@@ -750,49 +714,75 @@ input[type="range"]::-webkit-slider-thumb {
         currentGroupId = data.currentGroupId || null;
         userPrediction = data.userPrediction || { avg: null, risk: null };
         maternalPassed = data.maternalPassed || false;
-        if(experiments.length && currentGroupId && !experiments.find(g=>g.id===currentGroupId)) currentGroupId = experiments[0]?.id || null;
+        if(experiments.length && currentGroupId && !experiments.find(g=>g.id===currentGroupId)) currentGroupId = experiments[0]?.id;
       }
     } catch(e) {}
   }
   
-  // 页面导航
   const pages = [null, document.getElementById('page1'), document.getElementById('page2'), document.getElementById('page3'), document.getElementById('page4'), document.getElementById('page5')];
   let currentPageIdx = 1;
   
-  function showPage(n) {
-  if (n<1) n=1; if (n>5) n=5;
-  for(let i=1;i<=5;i++) if(pages[i]) pages[i].classList.remove('active');
-  pages[n].classList.add('active');
-  currentPageIdx = n;
-  document.getElementById('pageIndicator').innerText = `第${n}/5页`;
-  
-  // --- 语音控制增强 ---
-  if (n === 5) {
-    // 强制停止并清理所有音频（第五页绝对不播放任何语音）
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      currentAudio.removeEventListener('timeupdate', updateProgress);
-      currentAudio.removeEventListener('ended', onAudioEnded);
-      currentAudio = null;
+  // 清理一次性音频监听器
+  function clearPage1OnceHandler() {
+    if (page1OnceClickHandler) {
+      document.removeEventListener('click', page1OnceClickHandler);
+      page1OnceClickHandler = null;
     }
-    const playBtn = document.getElementById('voicePlayBtn');
-    if (playBtn) playBtn.innerHTML = '<i class="fas fa-play"></i>';
-    if (voiceProgress) voiceProgress.value = 0;
-  } else if (autoPlayEnabled && n >= 1 && n <= 4) {
-    // 仅第1-4页且自动播放开启时，尝试播放对应语音
-    setTimeout(() => playPageVoice(n), 100);
   }
   
-  // 其余原有页面初始化逻辑保持不变 ...
+  // 播放第一页音频（用于点击其他区域时触发）
+  function playPage1VoiceOnDemand() {
+    if (autoPlayEnabled && currentPageIdx === 1) {
+      playPageVoice(1);
+      window.showTip('🎧 正在播放本章语音解说，可再次点击按钮进入下一页');
+    } else {
+      window.showTip('🔊 语音已开启，可点右下角调节');
+    }
+  }
+  
+  // 重置第一页引导状态
+  function resetPage1Guide() {
+    page1GuideCompleted = false;
+    page1AwaitingSecond = false;
+    clearPage1OnceHandler();
+    const startBtn = document.getElementById('startLearningBtn');
+    if (startBtn) startBtn.innerText = '🎧 开始探索 | 点击此处';
+  }
+  
+  function showPage(n) {
+    if (n<1) n=1; if (n>5) n=5;
+    for(let i=1;i<=5;i++) if(pages[i]) pages[i].classList.remove('active');
+    pages[n].classList.add('active');
+    currentPageIdx = n;
+    document.getElementById('pageIndicator').innerText = `第${n}/5页`;
+    
+    if (n !== 1) {
+      // 离开第一页时清除未完成引导状态（但若已经完成就不影响）
+      if (!page1GuideCompleted) {
+        // 未完成时自动重置提示，避免卡死
+        resetPage1Guide();
+      }
+    }
+    
+    if (n === 5) {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio.removeEventListener('timeupdate', updateProgress);
+        currentAudio.removeEventListener('ended', onAudioEnded);
+        currentAudio = null;
+      }
+      const playBtn = document.getElementById('voicePlayBtn');
+      if (playBtn) playBtn.innerHTML = '<i class="fas fa-play"></i>';
+      if (voiceProgress) voiceProgress.value = 0;
+    } else if (autoPlayEnabled && n >= 1 && n <= 4) {
+      setTimeout(() => playPageVoice(n), 100);
+    }
     
     if (n===3) {
       rebuildMitoGrid();
       const s = document.getElementById('mutSlider');
-      if (s) {
-        if (!s.value) s.value = '70';
-        updateThresholdUI();
-      }
+      if (s) { if (!s.value) s.value = '70'; updateThresholdUI(); }
       document.getElementById('predictLoad').innerText = getSliderValue();
     }
     if (n===4) {
@@ -817,15 +807,61 @@ input[type="range"]::-webkit-slider-thumb {
     showPage(currentPageIdx-1);
   };
   window.navigateNext = function() {
+    // 第一页特殊引导限制
+    if (currentPageIdx === 1 && !page1GuideCompleted) {
+      window.showTip('👆 请先点击“开始探索”按钮，并根据提示点击页面其他区域听语音，再次点击按钮进入学习');
+      return;
+    }
     if (currentPageIdx===2 && !maternalPassed) { window.showTip('请先完成母系教学'); return; }
     if (currentPageIdx===3 && experiments.length===0) { window.showTip('请先点击橙色按钮创建实验组'); return; }
     showPage(currentPageIdx+1);
   };
   
-  function getSliderValue() { 
-    const s = document.getElementById('mutSlider');
-    return s ? parseInt(s.value) : 70;
+  // ----- 全新的第一页按钮交互：第一次提示+外部点击播放音频，第二次换页-----
+  function initStartButton() {
+    const startBtn = document.getElementById('startLearningBtn');
+    if (!startBtn) return;
+    startBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (currentPageIdx !== 1) return;
+      // 已完成引导的情况直接跳转
+      if (page1GuideCompleted) {
+        window.nextToPage2();
+        return;
+      }
+      // 未完成引导，且未进入二次等待状态 => 第一次点击
+      if (!page1AwaitingSecond) {
+        page1AwaitingSecond = true;
+        startBtn.innerText = '🔊 再次点击进入学习 (先点其他地方听语音)';
+        window.showTip('🔊 点击页面任意区域可播放语音解说。再次点击本按钮进入学习页');
+        // 添加一次性全局监听：点击任意其他区域播放音频（但要排除按钮本身）
+        clearPage1OnceHandler(); // 清理旧的
+        page1OnceClickHandler = (ev) => {
+          // 如果点击的目标是 startBtn 或其子元素，不触发播放音频（让用户再次点击按钮换页）
+          let target = ev.target;
+          let isStartBtn = (target === startBtn || startBtn.contains(target));
+          if (!isStartBtn && page1AwaitingSecond && currentPageIdx === 1) {
+            playPage1VoiceOnDemand();
+            clearPage1OnceHandler(); // 播放一次后移除监听，避免重复播放干扰
+            page1OnceClickHandler = null;
+          }
+        };
+        document.addEventListener('click', page1OnceClickHandler);
+        return;
+      } 
+      // 第二次点击：完成引导，进入第二页
+      if (page1AwaitingSecond) {
+        page1GuideCompleted = true;
+        page1AwaitingSecond = false;
+        clearPage1OnceHandler();
+        startBtn.innerText = '🎧 开始探索 | 点击此处';
+        window.nextToPage2();
+        saveToLocal();
+      }
+    };
   }
+  
+  function getSliderValue() { return parseInt(document.getElementById('mutSlider')?.value) || 70; }
   
   function rebuildMitoGrid() {
     const grid = document.getElementById('mitoGrid');
@@ -838,20 +874,18 @@ input[type="range"]::-webkit-slider-thumb {
     let val = getSliderValue();
     let dots = document.querySelectorAll('#mitoGrid .mito-dot');
     for(let i=0;i<dots.length;i++) dots[i].style.background = (i<val) ? '#e34234' : '#2ecc71';
-    let msg='', eye=false, muscle=false, brain=false;
+    let msg='';
     if(val<20) msg=val+'% → 健康';
-    else if(val<60) { msg=val+'% → 轻度疲劳'; eye=true; }
-    else if(val<85) { msg=val+'% → 视力/肌肉症状'; eye=true; muscle=true; }
-    else { msg=val+'% → 严重多器官疾病'; eye=true; muscle=true; brain=true; }
+    else if(val<60) msg=val+'% → 轻度疲劳';
+    else if(val<85) msg=val+'% → 视力/肌肉症状';
+    else msg=val+'% → 严重多器官疾病';
     document.getElementById('thresholdStatus').innerText = msg;
   }
   
   window.randomPrediction = function() {
     const motherLoad = getSliderValue();
-    let randAvg = Math.round(motherLoad + (Math.random() - 0.5) * 15);
-    randAvg = Math.min(85, Math.max(15, randAvg));
-    let randRisk = Math.round(30 + Math.random() * 50);
-    randRisk = Math.min(95, randRisk);
+    let randAvg = Math.min(85, Math.max(15, Math.round(motherLoad + (Math.random() - 0.5) * 15)));
+    let randRisk = Math.min(95, Math.round(30 + Math.random() * 50));
     document.getElementById('predictAvg').value = randAvg;
     document.getElementById('predictRisk').value = randRisk;
     window.showTip(`随机预测：平均突变 ${randAvg}%，患病概率 ${randRisk}%`);
@@ -964,7 +998,6 @@ input[type="range"]::-webkit-slider-thumb {
     document.getElementById('avgMutation').innerHTML = avg.toFixed(1)+'%';
     document.getElementById('sickRatio').innerHTML = `${(sick/totalChildren*100).toFixed(1)}% (${sick}/${totalChildren})`;
     document.getElementById('healthyRatio').innerHTML = `${(healthy/totalChildren*100).toFixed(1)}% (${healthy}/${totalChildren})`;
-    
     let feedbackHtml = '';
     if (userPrediction.avg !== null) {
       let diffAvg = Math.abs(avg - userPrediction.avg);
@@ -987,193 +1020,22 @@ input[type="range"]::-webkit-slider-thumb {
     drawHistogram(allChildren);
   }
   
-  function drawHistogram(data) { /* 保持不变，与原文相同 */ 
+  function drawHistogram(data) { /* 与原逻辑一致，省略但保留完整功能 */ 
     const canvas = document.getElementById('histogramCanvas');
-    if(!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const container = canvas.parentElement;
-    let maxW = Math.min(500, container.clientWidth - 24);
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = maxW * dpr; canvas.height = 200 * dpr;
-    canvas.style.width = `${maxW}px`; canvas.style.height = `200px`;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);
-    if(data.length===0) { ctx.fillStyle='#aaa'; ctx.fillText('无数据',20,40); return; }
-    if(histMode === 'fine') {
-      let bins = new Array(10).fill(0);
-      data.forEach(v => { let idx = Math.min(9, Math.floor(v/10)); bins[idx]++; });
-      let maxCount = Math.max(...bins,1);
-      let barWidth = (maxW - 80) / 10;
-      let labels = ['0-10','10-20','20-30','30-40','40-50','50-60','60-70','70-80','80-90','90-100'];
-      let colors = ['#2ecc71','#2ecc71','#f1c40f','#f1c40f','#f1c40f','#e67e22','#e34234','#e34234','#9b59b6','#9b59b6'];
-      for(let i=0;i<10;i++) {
-        let h = (bins[i]/maxCount)*(160);
-        if(h<4 && bins[i]>0) h=8;
-        ctx.fillStyle = colors[i];
-        ctx.fillRect(60 + i*barWidth, 180-h, barWidth-4, h);
-        ctx.fillStyle='#ddd'; ctx.font='8px sans-serif';
-        ctx.fillText(labels[i], 60+i*barWidth+2, 190);
-        ctx.fillStyle='#fff'; ctx.fillText(bins[i], 60+i*barWidth+barWidth/2-5, 175-h);
-      }
-    } else {
-      let bins = [0,0,0,0];
-      data.forEach(v => { if(v<20) bins[0]++; else if(v<60) bins[1]++; else if(v<85) bins[2]++; else bins[3]++; });
-      let maxCount = Math.max(...bins,1);
-      let barWidth = (maxW - 80) / 4;
-      let labels = ['<20% 健康','20-60% 轻度','60-85% 症状','≥85% 重症'];
-      let colors = ['#2ecc71','#f1c40f','#e67e22','#e34234'];
-      for(let i=0;i<4;i++) {
-        let h = (bins[i]/maxCount)*(160);
-        if(h<4 && bins[i]>0) h=8;
-        ctx.fillStyle = colors[i];
-        ctx.fillRect(60 + i*barWidth, 180-h, barWidth-4, h);
-        ctx.fillStyle='#ddd'; ctx.font='8px sans-serif';
-        ctx.fillText(labels[i], 60+i*barWidth+2, 190);
-        ctx.fillStyle='#fff'; ctx.fillText(bins[i], 60+i*barWidth+barWidth/2-5, 175-h);
-      }
-    }
+    if(!canvas) return; const ctx = canvas.getContext('2d'); const container = canvas.parentElement; let maxW = Math.min(500, container.clientWidth - 24); const dpr = window.devicePixelRatio || 1; canvas.width = maxW * dpr; canvas.height = 200 * dpr; canvas.style.width = `${maxW}px`; canvas.style.height = `200px`; ctx.scale(dpr, dpr); ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr); if(data.length===0){ ctx.fillStyle='#aaa'; ctx.fillText('无数据',20,40); return; } if(histMode === 'fine') { let bins = new Array(10).fill(0); data.forEach(v => { let idx = Math.min(9, Math.floor(v/10)); bins[idx]++; }); let maxCount = Math.max(...bins,1); let barWidth = (maxW - 80) / 10; let labels = ['0-10','10-20','20-30','30-40','40-50','50-60','60-70','70-80','80-90','90-100']; let colors = ['#2ecc71','#2ecc71','#f1c40f','#f1c40f','#f1c40f','#e67e22','#e34234','#e34234','#9b59b6','#9b59b6']; for(let i=0;i<10;i++) { let h = (bins[i]/maxCount)*160; if(h<4 && bins[i]>0) h=8; ctx.fillStyle = colors[i]; ctx.fillRect(60 + i*barWidth, 180-h, barWidth-4, h); ctx.fillStyle='#ddd'; ctx.font='8px sans-serif'; ctx.fillText(labels[i], 60+i*barWidth+2, 190); ctx.fillStyle='#fff'; ctx.fillText(bins[i], 60+i*barWidth+barWidth/2-5, 175-h); } } else { let bins = [0,0,0,0]; data.forEach(v => { if(v<20) bins[0]++; else if(v<60) bins[1]++; else if(v<85) bins[2]++; else bins[3]++; }); let maxCount = Math.max(...bins,1); let barWidth = (maxW - 80) / 4; let labels = ['<20% 健康','20-60% 轻度','60-85% 症状','≥85% 重症']; let colors = ['#2ecc71','#f1c40f','#e67e22','#e34234']; for(let i=0;i<4;i++) { let h = (bins[i]/maxCount)*160; if(h<4 && bins[i]>0) h=8; ctx.fillStyle = colors[i]; ctx.fillRect(60 + i*barWidth, 180-h, barWidth-4, h); ctx.fillStyle='#ddd'; ctx.font='8px sans-serif'; ctx.fillText(labels[i], 60+i*barWidth+2, 190); ctx.fillStyle='#fff'; ctx.fillText(bins[i], 60+i*barWidth+barWidth/2-5, 175-h); } }
   }
   
-  function drawComparativeHistogram(dataA, dataB, labelA, labelB) { /* 完整保留，与原文相同，篇幅原因省略具体实现，但已存在于原代码中，实际运行时不会丢失 */ 
-    // 为保证代码完整性，这里必须保留原有实现，但由于篇幅限制，此处简写示意，实际您提供的代码中此函数是完整的，我们保留不变。
-    // 为避免截断，直接复制原函数内容。以下是原函数完整实现：
-    const canvas = document.getElementById('histogramCanvas');
-    if(!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const container = canvas.parentElement;
-    let maxW = Math.min(500, container.clientWidth - 24);
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = maxW * dpr; canvas.height = 200 * dpr;
-    canvas.style.width = `${maxW}px`; canvas.style.height = `200px`;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);
-    if(histMode === 'fine') {
-      let binsA = new Array(10).fill(0), binsB = new Array(10).fill(0);
-      dataA.forEach(v=>{ let idx=Math.min(9,Math.floor(v/10)); binsA[idx]++; });
-      dataB.forEach(v=>{ let idx=Math.min(9,Math.floor(v/10)); binsB[idx]++; });
-      let maxCount = Math.max(...binsA, ...binsB, 1);
-      let barWidth = (maxW - 80) / 10;
-      for(let i=0;i<10;i++) {
-        let hA = (binsA[i]/maxCount)*(160);
-        let hB = (binsB[i]/maxCount)*(160);
-        if(hA<4 && binsA[i]>0) hA=8; if(hB<4 && binsB[i]>0) hB=8;
-        let x = 60 + i*barWidth;
-        ctx.fillStyle = '#3a86ff';
-        ctx.fillRect(x, 180-hA, barWidth/2-2, hA);
-        ctx.fillStyle = '#ff9e3a';
-        ctx.fillRect(x+barWidth/2, 180-hB, barWidth/2-2, hB);
-      }
-    } else {
-      let binsA = [0,0,0,0], binsB = [0,0,0,0];
-      dataA.forEach(v=>{ if(v<20) binsA[0]++; else if(v<60) binsA[1]++; else if(v<85) binsA[2]++; else binsA[3]++; });
-      dataB.forEach(v=>{ if(v<20) binsB[0]++; else if(v<60) binsB[1]++; else if(v<85) binsB[2]++; else binsB[3]++; });
-      let maxCount = Math.max(...binsA, ...binsB, 1);
-      let barGroupWidth = (maxW - 80) / 4;
-      let leftMargin = 60;
-      for(let i=0;i<4;i++) {
-        let hA = (binsA[i]/maxCount)*(160);
-        let hB = (binsB[i]/maxCount)*(160);
-        if(hA<4 && binsA[i]>0) hA=8;
-        if(hB<4 && binsB[i]>0) hB=8;
-        let xBase = leftMargin + i * barGroupWidth;
-        let barWidthHalf = barGroupWidth * 0.4;
-        let gap = barGroupWidth * 0.1;
-        ctx.fillStyle = '#3a86ff';
-        ctx.fillRect(xBase, 180-hA, barWidthHalf, hA);
-        ctx.fillStyle = '#ff9e3a';
-        ctx.fillRect(xBase + barWidthHalf + gap, 180-hB, barWidthHalf, hB);
-        let groupLabels = ['<20%','20-60%','60-85%','≥85%'];
-        ctx.fillStyle='#ddd'; ctx.font='8px sans-serif';
-        ctx.fillText(groupLabels[i], xBase + 8, 190);
-        if(binsA[i] || binsB[i]) {
-          ctx.fillStyle='#fff'; ctx.font='7px sans-serif';
-          if(binsA[i]) ctx.fillText(binsA[i], xBase+barWidthHalf/2-4, 175-hA-2);
-          if(binsB[i]) ctx.fillText(binsB[i], xBase+barWidthHalf+gap+barWidthHalf/2-4, 175-hB-2);
-        }
-      }
-    }
+  function drawComparativeHistogram(dataA, dataB, labelA, labelB) { /* 与原逻辑保持一致，略写但保留定义避免出错*/ 
+    const canvas = document.getElementById('histogramCanvas'); if(!canvas) return; const ctx = canvas.getContext('2d'); const container = canvas.parentElement; let maxW = Math.min(500, container.clientWidth - 24); const dpr = window.devicePixelRatio || 1; canvas.width = maxW * dpr; canvas.height = 200 * dpr; canvas.style.width = `${maxW}px`; canvas.style.height = `200px`; ctx.scale(dpr, dpr); ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr); if(histMode === 'fine') { let binsA = new Array(10).fill(0), binsB = new Array(10).fill(0); dataA.forEach(v=>{ let idx=Math.min(9,Math.floor(v/10)); binsA[idx]++; }); dataB.forEach(v=>{ let idx=Math.min(9,Math.floor(v/10)); binsB[idx]++; }); let maxCount = Math.max(...binsA, ...binsB, 1); let barWidth = (maxW - 80) / 10; for(let i=0;i<10;i++) { let hA = (binsA[i]/maxCount)*160; let hB = (binsB[i]/maxCount)*160; if(hA<4 && binsA[i]>0) hA=8; if(hB<4 && binsB[i]>0) hB=8; let x = 60 + i*barWidth; ctx.fillStyle = '#3a86ff'; ctx.fillRect(x, 180-hA, barWidth/2-2, hA); ctx.fillStyle = '#ff9e3a'; ctx.fillRect(x+barWidth/2, 180-hB, barWidth/2-2, hB); } } else { let binsA = [0,0,0,0], binsB = [0,0,0,0]; dataA.forEach(v=>{ if(v<20) binsA[0]++; else if(v<60) binsA[1]++; else if(v<85) binsA[2]++; else binsA[3]++; }); dataB.forEach(v=>{ if(v<20) binsB[0]++; else if(v<60) binsB[1]++; else if(v<85) binsB[2]++; else binsB[3]++; }); let maxCount = Math.max(...binsA, ...binsB, 1); let barGroupWidth = (maxW - 80) / 4; let leftMargin = 60; for(let i=0;i<4;i++) { let hA = (binsA[i]/maxCount)*160; let hB = (binsB[i]/maxCount)*160; if(hA<4 && binsA[i]>0) hA=8; if(hB<4 && binsB[i]>0) hB=8; let xBase = leftMargin + i * barGroupWidth; let barWidthHalf = barGroupWidth * 0.4; let gap = barGroupWidth * 0.1; ctx.fillStyle = '#3a86ff'; ctx.fillRect(xBase, 180-hA, barWidthHalf, hA); ctx.fillStyle = '#ff9e3a'; ctx.fillRect(xBase + barWidthHalf + gap, 180-hB, barWidthHalf, hB); let groupLabels = ['<20%','20-60%','60-85%','≥85%']; ctx.fillStyle='#ddd'; ctx.font='8px sans-serif'; ctx.fillText(groupLabels[i], xBase + 8, 190); if(binsA[i] || binsB[i]) { ctx.fillStyle='#fff'; ctx.font='7px sans-serif'; if(binsA[i]) ctx.fillText(binsA[i], xBase+barWidthHalf/2-4, 175-hA-2); if(binsB[i]) ctx.fillText(binsB[i], xBase+barWidthHalf+gap+barWidthHalf/2-4, 175-hB-2); } } }
     document.getElementById('compareHint').innerHTML = `<span><i class="fas fa-square" style="color:#3a86ff"></i> ${labelA}%</span> <span><i class="fas fa-square" style="color:#ff9e3a"></i> ${labelB}%</span> <span><i class="fas fa-chart-simple"></i> ${histMode==='clinical'?'临床分组(阈值效应)':'细粒度分布'}</span>`;
   }
   
-  window.enableCompareUI = function() {
-    if(experiments.length < 2) { window.showTip('需要至少两个实验组才能对比'); return; }
-    compareModeActive = true;
-    document.getElementById('comparePanel').style.display = 'block';
-    document.getElementById('statsPanel').style.display = 'none';
-    document.getElementById('historyList').parentElement.style.display = 'none';
-    const selA = document.getElementById('compareSelectA');
-    const selB = document.getElementById('compareSelectB');
-    selA.innerHTML = ''; selB.innerHTML = '';
-    experiments.forEach(exp => {
-      let optA = document.createElement('option'); optA.value = exp.id; optA.text = `负荷${exp.motherPercent}% (${exp.births.length}次)`;
-      let optB = optA.cloneNode(true);
-      selA.appendChild(optA); selB.appendChild(optB);
-    });
-    if(experiments[0]) selA.value = experiments[0].id;
-    if(experiments[1]) selB.value = experiments[1].id;
-    window.doCompare();
-  };
+  window.enableCompareUI = function() { if(experiments.length < 2) { window.showTip('需要至少两个实验组才能对比'); return; } compareModeActive = true; document.getElementById('comparePanel').style.display = 'block'; document.getElementById('statsPanel').style.display = 'none'; document.getElementById('historyList').parentElement.style.display = 'none'; const selA = document.getElementById('compareSelectA'); const selB = document.getElementById('compareSelectB'); selA.innerHTML = ''; selB.innerHTML = ''; experiments.forEach(exp => { let optA = document.createElement('option'); optA.value = exp.id; optA.text = `负荷${exp.motherPercent}% (${exp.births.length}次)`; let optB = optA.cloneNode(true); selA.appendChild(optA); selB.appendChild(optB); }); if(experiments[0]) selA.value = experiments[0].id; if(experiments[1]) selB.value = experiments[1].id; window.doCompare(); };
+  window.doCompare = function() { const idA = parseInt(document.getElementById('compareSelectA').value); const idB = parseInt(document.getElementById('compareSelectB').value); const groupA = experiments.find(g=>g.id===idA); const groupB = experiments.find(g=>g.id===idB); if(!groupA || !groupB) return; let dataA=[], dataB=[]; for(let b of groupA.births) dataA.push(...b.children); for(let b of groupB.births) dataB.push(...b.children); drawComparativeHistogram(dataA, dataB, groupA.motherPercent, groupB.motherPercent); let avgA = dataA.length ? (dataA.reduce((s,v)=>s+v,0)/dataA.length).toFixed(1) : '无数据'; let avgB = dataB.length ? (dataB.reduce((s,v)=>s+v,0)/dataB.length).toFixed(1) : '无数据'; document.getElementById('dynamicConclusion').innerHTML = `📊 对比：组A(负荷${groupA.motherPercent}%) 平均 ${avgA}%，组B(负荷${groupB.motherPercent}%) 平均 ${avgB}%。<br>当前直方图模式：${histMode==='clinical'?'临床阈值分组(健康/轻度/症状/重症)':'10%细粒度区间'}`; document.getElementById('chartTitle').innerHTML = `对比模式：${groupA.motherPercent}% vs ${groupB.motherPercent}% (${histMode==='clinical'?'临床分组':'细粒度'})`; };
+  window.exitCompareMode = function() { compareModeActive = false; document.getElementById('comparePanel').style.display = 'none'; document.getElementById('statsPanel').style.display = 'block'; document.getElementById('historyList').parentElement.style.display = 'block'; document.getElementById('compareHint').innerHTML = ''; refreshCurrentGroupDisplay(); };
   
-  window.doCompare = function() {
-    const idA = parseInt(document.getElementById('compareSelectA').value);
-    const idB = parseInt(document.getElementById('compareSelectB').value);
-    const groupA = experiments.find(g=>g.id===idA);
-    const groupB = experiments.find(g=>g.id===idB);
-    if(!groupA || !groupB) return;
-    let dataA=[], dataB=[];
-    for(let b of groupA.births) dataA.push(...b.children);
-    for(let b of groupB.births) dataB.push(...b.children);
-    drawComparativeHistogram(dataA, dataB, groupA.motherPercent, groupB.motherPercent);
-    let avgA = dataA.length ? (dataA.reduce((s,v)=>s+v,0)/dataA.length).toFixed(1) : '无数据';
-    let avgB = dataB.length ? (dataB.reduce((s,v)=>s+v,0)/dataB.length).toFixed(1) : '无数据';
-    document.getElementById('dynamicConclusion').innerHTML = `📊 对比：组A(负荷${groupA.motherPercent}%) 平均 ${avgA}%，组B(负荷${groupB.motherPercent}%) 平均 ${avgB}%。<br>当前直方图模式：${histMode==='clinical'?'临床阈值分组(健康/轻度/症状/重症)':'10%细粒度区间'}`;
-    document.getElementById('chartTitle').innerHTML = `对比模式：${groupA.motherPercent}% vs ${groupB.motherPercent}% (${histMode==='clinical'?'临床分组':'细粒度'})`;
-  };
-  
-  window.exitCompareMode = function() {
-    compareModeActive = false;
-    document.getElementById('comparePanel').style.display = 'none';
-    document.getElementById('statsPanel').style.display = 'block';
-    document.getElementById('historyList').parentElement.style.display = 'block';
-    document.getElementById('compareHint').innerHTML = '';
-    refreshCurrentGroupDisplay();
-  };
-  
-  function generateReport() {
-    let html = '';
-    if(experiments.length===0) html='<p>暂无实验数据，请先进行瓶颈模拟。</p>';
-    else {
-      html = '<ul style="padding-left:20px;">';
-      for(let exp of experiments) {
-        let allC = [];
-        for(let b of exp.births) allC.push(...b.children);
-        let avg = allC.length ? (allC.reduce((a,b)=>a+b,0)/allC.length).toFixed(1) : '无数据';
-        html += `<li>母亲负荷 ${exp.motherPercent}%：${exp.births.length}次生育，后代平均突变 ${avg}%</li>`;
-      }
-      html += '</ul><p>💡 <strong>给小雅家的结论：</strong> 母亲突变负荷越高，后代平均风险越高，但单次生育结果高度随机（瓶颈效应）。建议进行产前基因检测或胚胎植入前遗传学检测。线粒体置换疗法为高风险家庭提供新选择。</p>';
-    }
-    document.getElementById('reportSummary').innerHTML = html;
-  }
-  
-  window.exportReportAsText = function() {
-    let content = "线粒体遗传咨询报告\n生成时间："+new Date().toLocaleString()+"\n\n";
-    if(experiments.length===0) content+= "暂无模拟数据";
-    else {
-      for(let exp of experiments) {
-        let allC = [];
-        for(let b of exp.births) allC.push(...b.children);
-        let avg = allC.length ? (allC.reduce((a,b)=>a+b,0)/allC.length).toFixed(1) : '无数据';
-        let sick = allC.filter(p=>p>60).length;
-        content += `母亲负荷 ${exp.motherPercent}%：模拟生育 ${exp.births.length} 次，后代平均突变 ${avg}%，患病率 ${allC.length?((sick/allC.length)*100).toFixed(1):'0'}%\n`;
-      }
-    }
-    const blob = new Blob([content], {type: "text/plain"});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = "线粒体咨询报告.txt";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
+  function generateReport() { let html = ''; if(experiments.length===0) html='<p>暂无实验数据，请先进行瓶颈模拟。</p>'; else { html = '<ul style="padding-left:20px;">'; for(let exp of experiments) { let allC = []; for(let b of exp.births) allC.push(...b.children); let avg = allC.length ? (allC.reduce((a,b)=>a+b,0)/allC.length).toFixed(1) : '无数据'; html += `<li>母亲负荷 ${exp.motherPercent}%：${exp.births.length}次生育，后代平均突变 ${avg}%</li>`; } html += '</ul><p>💡 <strong>给小雅家的结论：</strong> 母亲突变负荷越高，后代平均风险越高，但单次生育结果高度随机（瓶颈效应）。建议进行产前基因检测或胚胎植入前遗传学检测。线粒体置换疗法为高风险家庭提供新选择。</p>'; } document.getElementById('reportSummary').innerHTML = html; }
+  window.exportReportAsText = function() { let content = "线粒体遗传咨询报告\n生成时间："+new Date().toLocaleString()+"\n\n"; if(experiments.length===0) content+= "暂无模拟数据"; else { for(let exp of experiments) { let allC = []; for(let b of exp.births) allC.push(...b.children); let avg = allC.length ? (allC.reduce((a,b)=>a+b,0)/allC.length).toFixed(1) : '无数据'; let sick = allC.filter(p=>p>60).length; content += `母亲负荷 ${exp.motherPercent}%：模拟生育 ${exp.births.length} 次，后代平均突变 ${avg}%，患病率 ${allC.length?((sick/allC.length)*100).toFixed(1):'0'}%\n`; } } const blob = new Blob([content], {type: "text/plain"}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "线粒体咨询报告.txt"; a.click(); URL.revokeObjectURL(a.href); };
   
   window.resetAll = function() {
     experiments = []; nextId=1; currentGroupId=null; compareModeActive=false; maternalPassed=false; userPrediction = { avg: null, risk: null };
@@ -1184,31 +1046,22 @@ input[type="range"]::-webkit-slider-thumb {
     document.getElementById('predictionResult').innerHTML = '';
     const slider=document.getElementById('mutSlider'); if(slider) slider.value='70';
     rebuildMitoGrid(); updateThresholdUI();
-    showPage(1); window.showTip('已完全重置');
+    resetPage1Guide();
+    showPage(1);
+    window.showTip('已完全重置');
   };
   
-  window.doFertilization = function() {
-    document.getElementById('explainText').innerHTML='🧫 受精完成！精子线粒体被泛素化降解，胚胎线粒体全部来自卵子。<br><i class="fas fa-check-circle"></i> ✅ 父系不传递线粒体DNA。';
-    setTimeout(()=>document.getElementById('maternalQuiz').style.display='block',800);
-  };
-  
-  window.answerMaternal = function(isAffected) {
-    if(isAffected===false) { window.showTip('回答正确！父亲疾病不会传给子女。'); maternalPassed=true; document.getElementById('maternalQuiz').style.display='none'; saveToLocal(); }
-    else window.showTip('不对，父亲线粒体DNA不遗传给子女。');
-  };
-  
+  window.doFertilization = function() { document.getElementById('explainText').innerHTML='🧫 受精完成！精子线粒体被泛素化降解，胚胎线粒体全部来自卵子。<br><i class="fas fa-check-circle"></i> ✅ 父系不传递线粒体DNA。'; setTimeout(()=>document.getElementById('maternalQuiz').style.display='block',800); };
+  window.answerMaternal = function(isAffected) { if(isAffected===false) { window.showTip('回答正确！父亲疾病不会传给子女。'); maternalPassed=true; document.getElementById('maternalQuiz').style.display='none'; saveToLocal(); } else window.showTip('不对，父亲线粒体DNA不遗传给子女。'); };
   window.nextToPage2 = function() { showPage(2); };
+  function renderFamilyTree() { document.getElementById('familyTreeDemo').innerHTML=`<div class="member"><div class="avatar affected"><i class="fas fa-user"></i></div><div class="name">外公(患病)</div></div><div class="member"><div class="avatar carrier"><i class="fas fa-female"></i></div><div class="name">母亲(携带者)</div></div><div class="member"><div class="avatar affected"><i class="fas fa-child"></i></div><div class="name">小雅(患儿)</div></div><div class="member"><div class="avatar"><i class="fas fa-question"></i></div><div class="name">未来的孩子</div></div>`; }
   
-  function renderFamilyTree() { 
-    document.getElementById('familyTreeDemo').innerHTML=`<div class="member"><div class="avatar affected"><i class="fas fa-user"></i></div><div class="name">外公(患病)</div></div><div class="member"><div class="avatar carrier"><i class="fas fa-female"></i></div><div class="name">母亲(携带者)</div></div><div class="member"><div class="avatar affected"><i class="fas fa-child"></i></div><div class="name">小雅(患儿)</div></div><div class="member"><div class="avatar"><i class="fas fa-question"></i></div><div class="name">未来的孩子</div></div>`; 
-  }
-  
-  // 事件绑定与初始化
   window.addEventListener('load',()=>{
     loadFromLocal();
     renderFamilyTree(); rebuildMitoGrid();
     const slider=document.getElementById('mutSlider'); if(slider) slider.addEventListener('input',()=>updateThresholdUI());
     updateThresholdUI();
+    initStartButton(); // 全新按钮逻辑
     document.getElementById('newGroupBtn').onclick = ()=>{ createNewGroup(); };
     document.getElementById('btnFineHist').onclick = ()=>{ histMode='fine'; if(!compareModeActive && getCurrentGroup()) refreshCurrentGroupDisplay(); else if(compareModeActive) window.doCompare(); };
     document.getElementById('btnClinicalHist').onclick = ()=>{ histMode='clinical'; if(!compareModeActive && getCurrentGroup()) refreshCurrentGroupDisplay(); else if(compareModeActive) window.doCompare(); };
@@ -1216,11 +1069,9 @@ input[type="range"]::-webkit-slider-thumb {
     const compareBtn = document.createElement('button');
     compareBtn.innerHTML='<i class="fas fa-chart-bar"></i> 对比模式（自选两组）';
     compareBtn.onclick=()=>window.enableCompareUI();
+    compareBtn.id='customCompareBtn';
     const container = document.querySelector('#page4 .flex-buttons');
-    if(container && !document.querySelector('#customCompareBtn')) {
-      compareBtn.id='customCompareBtn';
-      container.appendChild(compareBtn);
-    }
+    if(container && !document.querySelector('#customCompareBtn')) container.appendChild(compareBtn);
     if(experiments.length===0) showPage(1);
     else { if(currentGroupId) setCurrentGroup(currentGroupId); showPage(4); }
   });
